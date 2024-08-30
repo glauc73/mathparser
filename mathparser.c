@@ -13,16 +13,24 @@
 // OBS: ao longo deste codigo, a macro __DBL_MIN__ foi usada para indicar casos em que algum erro ocorreu, ao inves do convencional 0
 
 #ifndef M_PI
-#define M_PI 3.14159265358979
+  #define M_PI 3.14159265358979
 #endif
+
 #ifndef M_e
-#define M_e 2.7182818284
+  #define M_e 2.7182818284
 #endif
+
 #ifndef EPSILON
-#define EPSILON 0.000001
+  #define EPSILON 0.000001
 #endif
 
 #define NUM_X0 256
+
+#define DIFERENCE_MODULE(x, y) fabs(fabs(x) - fabs(y))
+
+#define SIZE_ARR(X) sizeof(X)/sizeof(X[0])
+
+static bool isop(char ch);
 
 static void skipspace(char **exp);
 
@@ -105,7 +113,7 @@ typedef enum
 
 typedef enum
 {
-  EVAL = 9, BOOLE, EQUATION, FORMAT_ERROR = -14
+  EVAL = 9, BOOLE, EQUATION, FORMAT_ERROR, INVALID_CHAR 
 }status_solve;
 
 typedef struct
@@ -120,6 +128,10 @@ status_solve except_solve = EVAL;
 
 signed char var = 'x';
 
+char valid_operation[] = {
+  '+', '-', '*', '/', '(', ')', '!', '^', '='
+};
+
 // a cada nova funcao ou constante adicionada, modificar isFunc();
 
 func_map functions[] = { //mapa contendo as funcoes e suas respectivas strings
@@ -131,6 +143,15 @@ func_map functions[] = { //mapa contendo as funcoes e suas respectivas strings
     {"pi", PI_},
     {"e", euller_number},
     {"(", isbracket}};
+
+bool isop(char ch) {
+  bool chisop = false;
+  for(int i = 0; (size_t)i < SIZE_ARR(valid_operation); i++) {
+    chisop = (ch == valid_operation[i]);
+    if(chisop) break;
+  }
+  return chisop ? 1 : 0;
+}
 
 /**
  * @brief funcao que compara dois valores. usada na comparacao da funcao qsort (que usa quick sort para ordenar arrays)
@@ -244,6 +265,21 @@ void checkbrackets(char **exp)
     return;
   }
   (*exp)++;
+}
+
+/**
+ * @brief analisa de antemao se existe algum caracter nao mapeado na string
+ * 
+ * @param iterator 
+ */
+void check_invalid_char(char* iterator) {
+while(*iterator) {
+    if(!isalnum(*iterator) && !isop(*iterator) && !isspace(*iterator)){
+      printf("caracter invalido: '%c'\n", *iterator);
+      except_solve = INVALID_CHAR;
+    }
+    iterator++;
+  }
 }
 
 /**
@@ -425,13 +461,6 @@ double parseexp(char **exp)
     skipspace(exp);
   }
 
-  // caso haja um caracter sem significado matematico como '&', é no momento do retorno da ultima funcao anterior a ele que deve ser verificado
-  // caso o esse caracter nao seja de final de string nem de fechamento de expressao, retorne um log de erro
-  if (**exp != '\0' && **exp != ')')
-  {
-    printf("expressao invalida: '%c'\n", **exp);
-    result = __DBL_MIN__;
-  }
   return result;
 }
 
@@ -514,7 +543,6 @@ int isFunc(char *exp)
 
   return 0;
 }
-
 
 /**
  * @brief formata uma fequacao em uma funcao. adiciona o caracter '*' em casos como "2x", elimina espaços
@@ -639,6 +667,12 @@ double solve(char *exp, double *root, uint16_t *count_root)
     return DBL_MIN;
   }
 
+  check_invalid_char(exp);
+
+  if(except_solve == INVALID_CHAR) {
+    return DBL_MIN;
+  }
+
   char* equal_sign = lado_direito;
   *lado_direito++ = '\0';
 
@@ -678,7 +712,7 @@ int filter_equal_root(double *arr, double *root)
   // percorre todo o array
   while (i < NUM_X0)
   {
-    if (fabs(arr[i] - arr[i + 1]) < EPSILON)
+    if ( ((DIFERENCE_MODULE(arr[i], arr[i+1]) < EPSILON ) && i < NUM_X0 - 1) )
     {
       i++;
       continue;
@@ -836,31 +870,32 @@ char *func_composite(char *exp, const char *g_x)
 
 int main()
 {
-  SetConsoleOutputCP(CP_UTF8);
+SetConsoleOutputCP(CP_UTF8);
 
-  srand(time(NULL));
+srand(time(NULL));
 
-  angle = RAD;
-  double root[64] = {};
-  uint16_t count;
+angle = RAD;
+double root[64] = {};
+uint16_t count;
 
-  char exp[512];
+char exp[512];
 
-  printf("\nescreva uma expressao(equacao, numerica ou booleana):\n\n");
-  fgets(exp, 512, stdin);
-  exp[strcspn(exp, "\n")] = '\0';
+printf("\nescreva uma expressao(equacao, numerica ou booleana):\n\n");
 
-   double result = solve(exp, root, &count);
+fgets(exp, 512, stdin);
+exp[strcspn(exp, "\n")] = '\0';
 
-  if(except_solve == EVAL) {
-    printf("%s = %lf", exp, result);
+  double result = solve(exp, root, &count);
+
+if(except_solve == EVAL) {
+  printf("%s = %lf", exp, result);
+}
+else if(except_solve == EQUATION){
+  printf("as solucoes reais de %s são: \n", exp);
+  for(int i = 0; i < count; i++) {
+    printf("%c = %lf\n", var, root[i]);
   }
-  else if(except_solve == EQUATION){
-    printf("as solucoes reais de %s são: \n", exp);
-    for(int i = 0; i < count; i++) {
-      printf("%c = %lf\n", var, root[i]);
-    }
-  }
-
-  return 0;
+}
+  
+return 0;
 }
